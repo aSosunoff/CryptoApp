@@ -1,5 +1,18 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Certificate, getUserCertificates } from "crypto-pro";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  Certificate,
+  getUserCertificates,
+  getSystemInfo,
+  isValidSystemSetup,
+  createAttachedSignature,
+
+} from "crypto-pro";
 import styles from "./App.module.css";
 
 //#region UTILS
@@ -26,6 +39,12 @@ const getDateFormat = (date: Date) => {
 
   return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 };
+
+const getFormatNameCert = (cert: Certificate) => {
+  return `${cert.subjectName}; выдан: ${getDateFormat(
+    new Date(cert.validFrom)
+  )}`;
+};
 //#endregion
 
 const Item: React.FC = ({ children }) => {
@@ -33,23 +52,31 @@ const Item: React.FC = ({ children }) => {
 };
 
 export const App: React.FC = () => {
+  const fileRef = useRef<HTMLInputElement>(null);
+
   const [certificates, setCertificates] = useState<Certificate[]>([]);
   const [error, setError] = useState("");
 
   const [certificateSelected, setCertificateSelected] = useState<number>(-1);
 
-  const getFormatNameCert = useCallback((cert: Certificate) => {
-    return `${cert.subjectName}; выдан: ${getDateFormat(
-      new Date(cert.validFrom)
-    )}`;
-  }, []);
+  const selectedCertificate = useMemo(() => certificates[certificateSelected], [
+    certificateSelected,
+    certificates,
+  ]);
+
+  const [subscribe, setSubscribe] = useState("");
 
   useEffect(() => {
     const getUserCert = async () => {
       try {
         const certificates = await getUserCertificates();
-        /* debugger; */
         setCertificates(() => certificates);
+
+        /* const i = await isValidSystemSetup();
+        console.log(i); */
+
+        /* const r = await getSystemInfo();
+        console.log(r); */
       } catch (er) {
         setError(() => er.message);
       }
@@ -58,6 +85,34 @@ export const App: React.FC = () => {
     getUserCert();
   }, []);
 
+  const subscribeHandler = useCallback(async () => {
+    if (!fileRef.current) {
+      return;
+    }
+
+    const { 0: file } = fileRef.current.files ?? { 0: null };
+
+    /* var oFReader = new FileReader(); */
+
+    if (!file) {
+      return;
+    }
+
+    if (!selectedCertificate) {
+      return;
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+
+    const subscribe = await createAttachedSignature(
+      selectedCertificate.thumbprint,
+      arrayBuffer
+    );
+
+    console.log(subscribe);
+    setSubscribe(() => subscribe);
+  }, [selectedCertificate]);
+
   return (
     <div className={styles.container}>
       <Item>
@@ -65,8 +120,6 @@ export const App: React.FC = () => {
           size={4}
           value={certificateSelected}
           onChange={(ev) => {
-            console.log(1);
-
             setCertificateSelected(() => Number(ev.target.value));
           }}
         >
@@ -82,11 +135,20 @@ export const App: React.FC = () => {
 
       <Item>
         Выбранный сертификат:&nbsp;
-        {certificates[certificateSelected] &&
-          getFormatNameCert(certificates[certificateSelected])}
+        {selectedCertificate && getFormatNameCert(selectedCertificate)}
       </Item>
 
-      <Item>{error && <div>{error}</div>}</Item>
+      <Item>
+        <input ref={fileRef} type="file" accept="application/pdf" />
+      </Item>
+
+      <Item>
+        <button onClick={subscribeHandler}>Подписать</button>
+      </Item>
+
+      <Item>{subscribe}</Item>
+
+      {error && <Item>{error}</Item>}
     </div>
   );
 };
