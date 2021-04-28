@@ -11,7 +11,8 @@ import {
   getSystemInfo,
   isValidSystemSetup,
   createAttachedSignature,
-
+  createDetachedSignature,
+  createHash,
 } from "crypto-pro";
 import styles from "./App.module.css";
 
@@ -92,8 +93,6 @@ export const App: React.FC = () => {
 
     const { 0: file } = fileRef.current.files ?? { 0: null };
 
-    /* var oFReader = new FileReader(); */
-
     if (!file) {
       return;
     }
@@ -104,12 +103,24 @@ export const App: React.FC = () => {
 
     const arrayBuffer = await file.arrayBuffer();
 
-    const subscribe = await createAttachedSignature(
+    //#region Attached
+    /* const subscribe = await createAttachedSignature(
       selectedCertificate.thumbprint,
       arrayBuffer
-    );
+    ); */
+    //#endregion
 
-    console.log(subscribe);
+    //#region Detached
+    const hash = await createHash(arrayBuffer);
+    console.log("hash", hash);
+
+    const subscribe = await createDetachedSignature(
+      selectedCertificate.thumbprint,
+      hash
+    );
+    //#endregion
+
+    console.log("subscribe", subscribe);
     setSubscribe(() => subscribe);
   }, [selectedCertificate]);
 
